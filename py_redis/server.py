@@ -1,6 +1,6 @@
 import pickle
 
-from socket import socket
+from socket import *
 from datatype import *
 
 class RedisServer:
@@ -19,7 +19,7 @@ class RedisServer:
         self.List = self.datas['LIST']
         self.host = host
         self.port = port
-        self.commands_map = {'SET': self.Str.set}
+        self.commands_map = {}
 
     def load(self):
         with open('redis.db', 'rb') as f:
@@ -36,7 +36,14 @@ class RedisServer:
                 pickle.dump(datas, f)
 
     def run(self):
+        self.register_commands()
         self.process_request()
+    
+    def register_commands(self):
+        d = self.datas['ZSET'].register_command()
+        self.commands_map.update(d)
+        s = self.datas['STR'].register_command()
+        self.commands_map.update(s)
 
 
     def execute_command(self, command):
@@ -47,6 +54,7 @@ class RedisServer:
 
     def process_request(self):
         server = socket()
+        server.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         server.bind((self.host, self.port))
         server.listen(10)
         while True:
@@ -56,6 +64,7 @@ class RedisServer:
             self.execute_command(command)
             #conn.send()
             print(self.Str.data)
+            conn.sendall("ok".encode())
             conn.close()
 
 if __name__ == '__main__':
