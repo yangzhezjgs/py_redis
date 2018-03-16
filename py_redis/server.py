@@ -37,34 +37,39 @@ class RedisServer:
 
     def run(self):
         self.register_commands()
+        self.load()
         self.process_request()
     
     def register_commands(self):
-        d = self.datas['ZSET'].register_command()
-        self.commands_map.update(d)
-        s = self.datas['STR'].register_command()
-        self.commands_map.update(s)
-
+        for k in self.datas:
+            command_map = self.datas[k].register_command()
+            self.commands_map.update(command_map)
 
     def execute_command(self, command):
         commands = command.split('\r\n')
-        method, key, value = commands[2],commands[4],commands[6]
-        self.commands_map[method](key, value)
+        rows = int(commands[0][1])
+        if rows == 3:
+            method, key, value = commands[2],commands[4],commands[6]
+            self.commands_map[method](key, value)
+        if rows == 4:
+            method, key, value, value2 = commands[2],commands[4],commands[6],commands[8]
+            self.commands_map[method](key, value, value2)
+
 
 
     def process_request(self):
         server = socket()
-        server.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         server.bind((self.host, self.port))
         server.listen(10)
         while True:
             conn, addr = server.accept()
-            accept_data = conn.recv(1024)
-            command = str(accept_data, encoding="utf8")
-            self.execute_command(command)
-            #conn.send()
-            print(self.Str.data)
-            conn.sendall("ok".encode())
+            while True:
+                accept_data = conn.recv(1024)
+                command = str(accept_data, encoding="utf8")
+                self.execute_command(command)
+                for k,v in self.datas.items():
+                    print(k,v.data)
+                conn.sendall("ok".encode())
             conn.close()
 
 if __name__ == '__main__':

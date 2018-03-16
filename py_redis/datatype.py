@@ -2,6 +2,7 @@ import pickle
 
 from bases import DataBase
 from ZSet import ZSet
+#from utils import log
 
 class ZSetStore(DataBase):
     data_type = ZSet
@@ -21,10 +22,16 @@ class ZSetStore(DataBase):
             nodes[k] = v.zset.nodes
         return nodes
 
+    def register_command(self):
+        commands = {}
+        commands['ZADD'] = self.zadd
+        return commands
+
+
 class SetStore(DataBase):
     data_type = set
 
-    def sadd(self,key,value):
+    def sadd(self, key, value):
         self.create_key(key)
         self.data[key].add(value)
 
@@ -38,11 +45,17 @@ class SetStore(DataBase):
         for k, v in self.data.items():
             nodes[k] = v
         return nodes
+    
+    def register_command(self):
+        commands = {}
+        commands['SADD'] = self.sadd
+        return commands
 
 
 class StrStore(DataBase):
     data_type = str
 
+    #@log('info')
     def set(self, key, value):
         self.create_key(key)
         self.data[key] = value
@@ -57,10 +70,16 @@ class StrStore(DataBase):
             nodes[k] = v
         return nodes
 
+    def register_command(self):
+        commands = {}
+        commands['SET'] = self.set
+        return commands
+
         
 
 class HashStore(DataBase):
     data_type = dict
+
 
     def hset(self, key, field, value ):
         self.create_key(key)
@@ -76,6 +95,11 @@ class HashStore(DataBase):
         for k, v in self.data.items():
             nodes[k] = v
         return nodes
+    
+    def register_command(self):
+        commands = {}
+        commands['HSET'] = self.hset
+        return commands
 
         
 
@@ -96,3 +120,8 @@ class ListStore(DataBase):
         for k, v in self.data.items():
             nodes[k] = v
         return nodes
+    
+    def register_command(self):
+        commands = {}
+        commands['LPUSH'] = self.lpush
+        return commands
