@@ -3,6 +3,7 @@ import pickle
 import selectors
 
 from datatype import *
+from logger import logger
 
 class RedisServer:
     def __init__(self, selector, sock, host='127.0.0.1', port=8880):
@@ -30,7 +31,6 @@ class RedisServer:
         for k in self.datas:
             self.datas[k].load(datas[k])
 
-
     def dump(self):
         datas = {}
         for k in self.datas:
@@ -49,16 +49,18 @@ class RedisServer:
             self.commands_map.update(command_map)
 
     def execute_command(self, command):
+        logger.info("execute %s", ''.join(command.split('\r\n')))
         commands = command.split('\r\n')
         rows = int(commands[0][1])
         if rows == 3:
             method, key, value = commands[2],commands[4],commands[6]
             self.commands_map[method](key, value)
-        if rows == 4:
+        elif rows == 4:
             method, key, value, value2 = commands[2],commands[4],commands[6],commands[8]
             self.commands_map[method](key, value, value2)
 
     def process_request(self):
+        logger.info("listen  to %s:%s"%(self.host, self.port))
         self.sock.bind((self.host, self.port))
         self.sock.listen(1000)
         self.sock.setblocking(False)
@@ -71,7 +73,7 @@ class RedisServer:
 
     def accept(self, sock, mask):
         conn, addr = sock.accept()
-        print('accepted', conn, 'from', addr)
+        logger.info("accepted conn from %s", addr)
         conn.setblocking(False)
         self.selector.register(conn, selectors.EVENT_READ, self.read)
 
@@ -81,10 +83,7 @@ class RedisServer:
         if command != 'exit':
             self.execute_command(command)
             self.dump()
-            print('echoing', repr(data), 'to', conn)
             conn.send('ok'.encode('utf8'))
-            for k,v in self.datas.items():
-                print(k,v.data)
         elif command == 'exit':
             print('closing',conn)
             self.selector.unregister(conn)
