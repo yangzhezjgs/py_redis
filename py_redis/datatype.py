@@ -2,7 +2,6 @@ import pickle
 
 from bases import DataBase
 from ZSet import ZSet
-#from utils import log
 
 class ZSetStore(DataBase):
     data_type = ZSet
@@ -34,6 +33,9 @@ class SetStore(DataBase):
     def sadd(self, key, value):
         self.create_key(key)
         self.data[key].add(value)
+    
+    def smembers(self, key):
+        return str(self.data[key])
 
     def load(self, nodes):
         for k, v in nodes.items():
@@ -49,16 +51,19 @@ class SetStore(DataBase):
     def register_command(self):
         commands = {}
         commands['SADD'] = self.sadd
+        commands['SMEMBERS'] = self.smembers
         return commands
 
 
 class StrStore(DataBase):
     data_type = str
 
-    #@log('info')
     def set(self, key, value):
         self.create_key(key)
         self.data[key] = value
+
+    def get(self, key):
+        return self.data[key]
 
     def load(self, nodes):
         for k, v in nodes.items():
@@ -73,6 +78,7 @@ class StrStore(DataBase):
     def register_command(self):
         commands = {}
         commands['SET'] = self.set
+        commands['GET'] = self.get
         return commands
 
         
@@ -80,10 +86,12 @@ class StrStore(DataBase):
 class HashStore(DataBase):
     data_type = dict
 
-
     def hset(self, key, field, value ):
         self.create_key(key)
         self.data[key][field] = value
+
+    def hget(self, key, field):
+        return self.data[key][field]
 
     def load(self, nodes):
         for k, v in nodes.items():
@@ -99,12 +107,16 @@ class HashStore(DataBase):
     def register_command(self):
         commands = {}
         commands['HSET'] = self.hset
+        commands['HGET'] = self.hget
         return commands
 
         
 
 class ListStore(DataBase):
     data_type = list
+
+    def lpop(self, key):
+        return self.data[key].pop(0)
 
     def lpush(self, key, value):
         self.create_key(key)
@@ -124,4 +136,5 @@ class ListStore(DataBase):
     def register_command(self):
         commands = {}
         commands['LPUSH'] = self.lpush
+        commands['LPOP'] = self.lpop
         return commands

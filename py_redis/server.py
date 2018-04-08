@@ -1,3 +1,4 @@
+import os
 import socket
 import pickle
 import selectors
@@ -14,11 +15,6 @@ class RedisServer:
                 'HASH': HashStore(),
                 'LIST': ListStore()
                 }
-        self.ZSet = self.datas['ZSET']
-        self.Set = self.datas['SET']
-        self.Str = self.datas['STR']
-        self.Hash = self.datas['HASH']
-        self.List = self.datas['LIST']
         self.host = host
         self.port = port
         self.selector = selector
@@ -26,10 +22,13 @@ class RedisServer:
         self.commands_map = {}
 
     def load(self):
-        with open('redis.db', 'rb') as f:
-                datas = pickle.load(f)
-        for k in self.datas:
-            self.datas[k].load(datas[k])
+        if os.path.exists('redis.db'):
+            with open('redis.db', 'rb') as f:
+                    datas = pickle.load(f)
+            for k in self.datas:
+                self.datas[k].load(datas[k])
+        else:
+            self.dump()
 
     def dump(self):
         datas = {}
@@ -49,15 +48,44 @@ class RedisServer:
             self.commands_map.update(command_map)
 
     def execute_command(self, command):
-        logger.info("execute %s", ''.join(command.split('\r\n')))
         commands = command.split('\r\n')
         rows = int(commands[0][1])
-        if rows == 3:
-            method, key, value = commands[2],commands[4],commands[6]
-            self.commands_map[method](key, value)
+        method = commands[2].upper()
+
+        if rows == 2:
+            method , key = method, commands[4]
+            logger.info("execute %s", ' '.join([method, key]))
+            try:
+                message = self.commands_map[method](key)
+            except Exception:
+                logger.error("execute %s", ' '.join([method, key, value]))
+                return 'Error'
+            return message
+        elif rows == 3:
+            method, key, value = method, commands[4], commands[6]
+            logger.info("execute %s", ' '.join([method, key, value]))
+            try:
+                message = self.commands_map[method](key, value)
+                if message == None:
+                    message = 'OK'
+            except Exception:
+                logger.error("execute %s", ' '.join([method, key, value]))
+                return 'Error'
+            return message
         elif rows == 4:
-            method, key, value, value2 = commands[2],commands[4],commands[6],commands[8]
-            self.commands_map[method](key, value, value2)
+            method, key, value, value2 = method, commands[4], commands[6], commands[8]
+            logger.info("execute %s", ' '.join([method, key, value, value2]))
+            try:
+                message = self.commands_map[method](key, value, value2)
+                if message == None:
+                    message = 'OK'
+            except Exception:
+                logger.error("execute %s", ' '.join([method, key, value, value2]))
+                return 'Error'
+            return message
+        else:
+            logger.error("execute %s", ''.join(commands))
+            return 'Error'
 
     def process_request(self):
         logger.info("listen  to %s:%s"%(self.host, self.port))
@@ -81,9 +109,9 @@ class RedisServer:
         data = conn.recv(1024)
         command = str(data, encoding="utf8")
         if command != 'exit':
-            self.execute_command(command)
+            message = self.execute_command(command)
             self.dump()
-            conn.send('ok'.encode('utf8'))
+            conn.send(message.encode('utf8'))
         elif command == 'exit':
             print('closing',conn)
             self.selector.unregister(conn)
