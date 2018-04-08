@@ -17,7 +17,7 @@ class Shell:
 class Client:
     def __init__(self):
         self.client=socket()
-        self.client.connect(('127.0.0.1',8889))
+        self.client.connect(('127.0.0.1',8880))
         self.shell = Shell()
         self.status = RUN
 
@@ -38,6 +38,7 @@ class Client:
             tokens = self.shell.get_cmd()
             request = self.generate_requests(tokens)
             if request == '':
+                self.client.sendall('exit'.encode('utf8'))
                 continue
             self.client.sendall(request.encode('utf8'))
             response = self.client.recv(1024).decode()

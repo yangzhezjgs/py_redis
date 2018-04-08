@@ -1,10 +1,11 @@
+import socket
 import pickle
+import selectors
 
-from socket import *
 from datatype import *
 
 class RedisServer:
-    def __init__(self, host='127.0.0.1', port=8889):
+    def __init__(self, selector, sock, host='127.0.0.1', port=8880):
         self.datas = {
                 'ZSET': ZSetStore(),
                 'STR': StrStore(),
@@ -19,6 +20,8 @@ class RedisServer:
         self.List = self.datas['LIST']
         self.host = host
         self.port = port
+        self.selector = selector
+        self.sock = sock
         self.commands_map = {}
 
     def load(self):
@@ -55,23 +58,40 @@ class RedisServer:
             method, key, value, value2 = commands[2],commands[4],commands[6],commands[8]
             self.commands_map[method](key, value, value2)
 
-
-
     def process_request(self):
-        server = socket()
-        server.bind((self.host, self.port))
-        server.listen(10)
+        self.sock.bind((self.host, self.port))
+        self.sock.listen(1000)
+        self.sock.setblocking(False)
+        self.selector.register(sock, selectors.EVENT_READ, self.accept)
         while True:
-            conn, addr = server.accept()
-            while True:
-                accept_data = conn.recv(1024)
-                command = str(accept_data, encoding="utf8")
-                self.execute_command(command)
-                for k,v in self.datas.items():
-                    print(k,v.data)
-                conn.sendall("ok".encode())
+            events = self.selector.select()
+            for key, mask in events:
+                callback = key.data
+                callback(key.fileobj, mask)
+
+    def accept(self, sock, mask):
+        conn, addr = sock.accept()
+        print('accepted', conn, 'from', addr)
+        conn.setblocking(False)
+        self.selector.register(conn, selectors.EVENT_READ, self.read)
+
+    def read(self, conn, mask):
+        data = conn.recv(1024)
+        command = str(data, encoding="utf8")
+        if command != 'exit':
+            self.execute_command(command)
+            self.dump()
+            print('echoing', repr(data), 'to', conn)
+            conn.send('ok'.encode('utf8'))
+            for k,v in self.datas.items():
+                print(k,v.data)
+        elif command == 'exit':
+            print('closing',conn)
+            self.selector.unregister(conn)
             conn.close()
 
 if __name__ == '__main__':
-    redis = RedisServer()
+    selector = selectors.DefaultSelector()
+    sock = socket.socket()
+    redis = RedisServer(selector, sock)
     redis.run()
