@@ -2,6 +2,8 @@ import os
 import socket
 import pickle
 import selectors
+from multiprocessing.dummy import Pool as ThreadPool
+from threading import Lock
 
 from datatype import *
 from logger import logger
@@ -20,6 +22,8 @@ class RedisServer:
         self.selector = selector
         self.sock = sock
         self.commands_map = {}
+        self.pool = ThreadPool(processes=4)
+        self.lock = Lock()
 
     def load(self):
         if os.path.exists('redis.db'):
@@ -31,10 +35,11 @@ class RedisServer:
             self.dump()
 
     def dump(self):
-        datas = {}
-        for k in self.datas:
-            datas[k] = self.datas[k].dump()
-        with open('redis.db', 'wb') as f:
+        with self.lock:
+            datas = {}
+            for k in self.datas:
+                datas[k] = self.datas[k].dump()
+            with open('redis.db', 'wb') as f:
                 pickle.dump(datas, f)
 
     def run(self):
@@ -58,7 +63,7 @@ class RedisServer:
             try:
                 message = self.commands_map[method](key)
             except Exception:
-                logger.error("execute %s", ' '.join([method, key, value]))
+                logger.error("execute %s", ' '.join([method, key]))
                 return 'Error'
             return message
         elif rows == 3:
@@ -109,7 +114,7 @@ class RedisServer:
         data = conn.recv(1024)
         command = str(data, encoding="utf8")
         if command != 'exit':
-            message = self.execute_command(command)
+            message = self.pool.apply(self.execute_command, (command,))
             self.dump()
             conn.send(message.encode('utf8'))
         elif command == 'exit':
