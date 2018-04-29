@@ -97,7 +97,7 @@ class RedisServer:
         self.sock.bind((self.host, self.port))
         self.sock.listen(1000)
         self.sock.setblocking(False)
-        self.selector.register(sock, selectors.EVENT_READ, self.accept)
+        self.selector.register(self.sock, selectors.EVENT_READ, self.accept)
         while True:
             events = self.selector.select()
             for key, mask in events:
@@ -122,8 +122,16 @@ class RedisServer:
             self.selector.unregister(conn)
             conn.close()
 
-if __name__ == '__main__':
+def create_redis_server():
     selector = selectors.DefaultSelector()
     sock = socket.socket()
-    redis = RedisServer(selector, sock)
+    server = RedisServer(selector, sock)
+    return server
+
+
+if __name__ == '__main__':
+    #selector = selectors.DefaultSelector()
+    #sock = socket.socket()
+    #redis = RedisServer(selector, sock)
+    redis = create_redis_server()
     redis.run()
